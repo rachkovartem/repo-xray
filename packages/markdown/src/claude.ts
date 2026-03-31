@@ -1,8 +1,17 @@
 import type { Graph, AnalysisResult } from '@repo-xray/core';
-import { basename } from 'node:path';
+import { basename, join } from 'node:path';
+import { readFileSync } from 'node:fs';
+
+function getProjectName(rootDir: string): string {
+  try {
+    const pkg = JSON.parse(readFileSync(join(rootDir, 'package.json'), 'utf-8'));
+    if (pkg.name) return pkg.name;
+  } catch {}
+  return basename(rootDir);
+}
 
 export function generateClaude(graph: Graph, analysis: AnalysisResult): string {
-  const name = basename(graph.rootDir);
+  const name = getProjectName(graph.rootDir);
   const lines: string[] = [];
 
   lines.push(`# Project: ${name}`);

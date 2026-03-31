@@ -17,6 +17,19 @@ function findEntryPoints(graph: Graph): string[] {
 
   for (const [id, node] of graph.nodes) {
     const name = basename(id).replace(/\.[^.]+$/, '');
+    const dirName = basename(dirname(id));
+
+    // Skip test files — they are never entry points
+    if (
+      name.endsWith('.test') ||
+      name.endsWith('.spec') ||
+      dirName === '__tests__' ||
+      dirName === 'test' ||
+      dirName === 'tests'
+    ) {
+      continue;
+    }
+
     const depth = id.split('/').length;
 
     // Files named index/main/app/server at depth <= 3
