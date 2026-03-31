@@ -1,6 +1,6 @@
 {
   "name": "repo-xray",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "X-ray any codebase — for humans and AI agents",
   "type": "module",
   "bin": {
