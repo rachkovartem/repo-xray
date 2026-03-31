@@ -1,13 +1,33 @@
 {
   "name": "repo-xray",
   "version": "0.1.0",
+  "description": "X-ray any codebase — for humans and AI agents",
   "type": "module",
   "bin": {
     "repo-xray": "dist/index.js"
   },
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "scripts": {
     "build": "tsc",
     "test": "vitest run"
+  },
+  "keywords": [
+    "codebase",
+    "visualization",
+    "dependency-graph",
+    "claude",
+    "cursor",
+    "ai-context",
+    "code-analysis",
+    "developer-tools"
+  ],
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ArtRachmo/repo-xray"
   },
   "dependencies": {
     "@repo-xray/core": "workspace:*",
