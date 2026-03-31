@@ -13,7 +13,7 @@ export async function scanFiles(rootDir: string): Promise<string[]> {
 }
 
 async function loadGitignore(rootDir: string): Promise<Ignore> {
-  const ig = ignore.default();
+  const ig = (typeof ignore === 'function' ? ignore : (ignore as any).default)();
   try {
     const content = await readFile(join(rootDir, '.gitignore'), 'utf-8');
     ig.add(content);
