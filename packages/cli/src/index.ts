@@ -20,17 +20,17 @@ program
   .option('-p, --port <number>', 'port for web UI', '3000')
   .action(async (dir, opts) => {
     const rootDir = resolve(dir);
-    console.log(`Scanning ${rootDir}...`);
+    process.stderr.write(`Scanning ${rootDir}...\n`);
 
     const graph = await buildGraph(rootDir);
     const analysis = analyze(graph);
-    console.log(`Found ${graph.meta.totalModules} modules, ${graph.meta.totalSymbols} symbols`);
+    process.stderr.write(`Found ${graph.meta.totalModules} modules, ${graph.meta.totalSymbols} symbols\n`);
 
     if (opts.json) {
       const json = serializeGraph(graph);
       if (opts.output) {
         await writeFile(opts.output, json, 'utf-8');
-        console.log(`Written to ${opts.output}`);
+        process.stderr.write(`Written to ${opts.output}\n`);
       } else {
         process.stdout.write(json + '\n');
       }
@@ -46,7 +46,7 @@ program
         const filename = getOutputFilename(format);
         const outPath = resolve(rootDir, filename);
         await writeFile(outPath, md, 'utf-8');
-        console.log(`Generated ${outPath}`);
+        process.stderr.write(`Generated ${outPath}\n`);
       }
       return;
     }
