@@ -1,4 +1,3 @@
-#!/usr/bin/env node
 import { Command } from 'commander';
 import { buildGraph, analyze } from '@repo-xray/core';
 import { serializeGraph } from '@repo-xray/json';

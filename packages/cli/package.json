@@ -8,10 +8,10 @@
   },
   "files": [
     "dist",
-    "README.md"
+    "web-dist"
   ],
   "scripts": {
-    "build": "tsc",
+    "build": "tsup && node scripts/copy-web.js",
     "test": "vitest run"
   },
   "keywords": [
@@ -27,18 +27,20 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/ArtRachmo/repo-xray"
+    "url": "https://github.com/rachkovartem/repo-xray"
+  },
+  "engines": {
+    "node": ">=18"
   },
   "dependencies": {
-    "@repo-xray/core": "workspace:*",
-    "@repo-xray/markdown": "workspace:*",
-    "@repo-xray/json": "workspace:*",
     "commander": "^13",
-    "sirv": "^3",
-    "open": "^10"
+    "ignore": "^7",
+    "open": "^10",
+    "typescript": "^5"
   },
   "devDependencies": {
-    "vitest": "^3",
-    "@types/node": "^22"
+    "@types/node": "^22",
+    "tsup": "^8.5.1",
+    "vitest": "^3"
   }
 }

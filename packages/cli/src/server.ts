@@ -1,6 +1,7 @@
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
-import { join, extname } from 'node:path';
+import { existsSync } from 'node:fs';
+import { join, extname, dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Graph, AnalysisResult } from '@repo-xray/core';
 import { serializeGraph } from '@repo-xray/json';
@@ -13,15 +14,14 @@ const MIME_TYPES: Record<string, string> = {
 export async function startServer(graph: Graph, analysis: AnalysisResult, port: number): Promise<void> {
   const graphJson = serializeGraph(graph);
 
-  // Resolve web dist directory - try @repo-xray/web first, fallback to relative
-  let webDistDir: string;
-  try {
-    const webPkgPath = import.meta.resolve('@repo-xray/web/package.json');
-    const webPkgDir = fileURLToPath(new URL('.', webPkgPath));
-    webDistDir = join(webPkgDir, 'dist');
-  } catch {
-    const __dirname = fileURLToPath(new URL('.', import.meta.url));
-    webDistDir = join(__dirname, '..', '..', 'web', 'dist');
+  // Find web-dist directory — bundled alongside the CLI
+  const __dirname = dirname(fileURLToPath(import.meta.url));
+  // In development: ../web-dist (relative to dist/)
+  // After npm install: ../web-dist (same structure)
+  let webDistDir = resolve(__dirname, '..', 'web-dist');
+  if (!existsSync(webDistDir)) {
+    // Fallback: development monorepo layout
+    webDistDir = resolve(__dirname, '..', '..', 'web', 'dist');
   }
 
   const server = createServer(async (req, res) => {
