@@ -10,8 +10,6 @@ export interface GraphNode {
 
 export interface GraphEdge {
   from: string; to: string; type: string; symbols: string[];
-  source: string | GraphNode;
-  target: string | GraphNode;
 }
 
 export interface GraphData {
@@ -20,4 +18,21 @@ export interface GraphData {
   meta: { language: string; totalModules: number; totalSymbols: number };
 }
 
-export type ZoomLevel = 'repo' | 'module' | 'symbol';
+// Directory-level aggregated node
+export interface DirNode {
+  id: string;        // directory path, e.g. "src/components"
+  label: string;     // display name, e.g. "components"
+  fileCount: number;
+  totalInDegree: number;  // sum of external inDegree
+  totalOutDegree: number; // sum of external outDegree
+  color: string;
+  files: GraphNode[];
+  x?: number; y?: number;
+  fx?: number | null; fy?: number | null;
+}
+
+export interface DirEdge {
+  from: string;
+  to: string;
+  weight: number; // number of file-level edges between these dirs
+}

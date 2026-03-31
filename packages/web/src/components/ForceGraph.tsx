@@ -2,39 +2,20 @@ import React, { useRef, useEffect, useCallback } from 'react';
 import { forceSimulation, forceLink, forceManyBody, forceCenter, forceCollide } from 'd3-force';
 import { select } from 'd3-selection';
 import { zoom as d3Zoom, zoomIdentity } from 'd3-zoom';
-import type { GraphNode, GraphEdge } from '../types.js';
+import type { DirNode, DirEdge, GraphNode, GraphEdge } from '../types.js';
 
-const LAYER_COLORS: Record<string, string> = {
-  entry: '#f0883e', core: '#58a6ff', util: '#8b949e',
-  type: '#3fb950', config: '#d2a8ff', test: '#f778ba',
-};
+// ─── Directory-level graph ───
 
-function nodeColor(node: GraphNode): string {
-  return LAYER_COLORS[node.layer ?? ''] ?? '#8b949e';
+interface DirGraphProps {
+  nodes: DirNode[];
+  edges: DirEdge[];
+  onDirClick: (dirId: string) => void;
 }
 
-function nodeRadius(node: GraphNode): number {
-  return Math.max(6, Math.min(20, 4 + node.inDegree * 3));
-}
-
-function nodeLabel(id: string): string {
-  const parts = id.split('/');
-  const filename = parts[parts.length - 1];
-  const dot = filename.lastIndexOf('.');
-  return dot > 0 ? filename.slice(0, dot) : filename;
-}
-
-interface ForceGraphProps {
-  nodes: GraphNode[];
-  edges: GraphEdge[];
-  selectedNode: GraphNode | null;
-  onNodeClick: (node: GraphNode) => void;
-  onNodeDoubleClick: (node: GraphNode) => void;
-}
-
-export const ForceGraph: React.FC<ForceGraphProps> = ({ nodes, edges, selectedNode, onNodeClick, onNodeDoubleClick }) => {
+export const DirGraph: React.FC<DirGraphProps> = ({ nodes, edges, onDirClick }) => {
   const svgRef = useRef<SVGSVGElement>(null);
-  const simulationRef = useRef<ReturnType<typeof forceSimulation<GraphNode>> | null>(null);
+  const onDirClickRef = useRef(onDirClick);
+  onDirClickRef.current = onDirClick;
 
   useEffect(() => {
     if (!svgRef.current || nodes.length === 0) return;
@@ -42,118 +23,370 @@ export const ForceGraph: React.FC<ForceGraphProps> = ({ nodes, edges, selectedNo
     const svg = select(svgRef.current);
     const width = svgRef.current.clientWidth;
     const height = svgRef.current.clientHeight;
-
     svg.selectAll('*').remove();
 
     const g = svg.append('g');
 
-    // Zoom
+    let currentScale = 1;
     const zoomBehavior = d3Zoom<SVGSVGElement, unknown>()
-      .scaleExtent([0.1, 8])
+      .scaleExtent([0.3, 4])
       .on('zoom', (event) => {
         g.attr('transform', event.transform);
+        currentScale = event.transform.k;
+        // Scale text inversely so it stays readable at any zoom
+        g.selectAll('text').attr('transform', `scale(${1 / currentScale})`);
       });
     svg.call(zoomBehavior);
 
-    // Prepare edge data with source/target as ids
-    const linkData = edges.map(e => ({ ...e, source: e.from, target: e.to }));
     const nodeData = nodes.map(n => ({ ...n }));
+    const linkData = edges.map(e => ({ ...e, source: e.from, target: e.to }));
 
-    // Simulation
-    const simulation = forceSimulation<GraphNode>(nodeData)
-      .force('link', forceLink(linkData).id((d: any) => d.id).distance(80))
-      .force('charge', forceManyBody().strength(-200))
+    const maxFiles = Math.max(...nodes.map(n => n.fileCount));
+
+    function radius(n: DirNode) {
+      return Math.max(20, Math.min(60, 15 + (n.fileCount / maxFiles) * 45));
+    }
+
+    const simulation = forceSimulation<DirNode>(nodeData as any)
+      .force('link', forceLink(linkData as any).id((d: any) => d.id).distance(180).strength(0.4))
+      .force('charge', forceManyBody().strength(-600))
       .force('center', forceCenter(width / 2, height / 2))
-      .force('collide', forceCollide<GraphNode>().radius(d => nodeRadius(d) + 5));
-
-    simulationRef.current = simulation;
+      .force('collide', forceCollide<DirNode>().radius((d: any) => radius(d) + 20));
 
     // Edges
     const link = g.append('g')
-      .attr('stroke', '#30363d')
-      .attr('stroke-opacity', 0.6)
       .selectAll('line')
       .data(linkData)
       .join('line')
-      .attr('stroke-width', 1);
+      .attr('stroke', '#484f58')
+      .attr('stroke-opacity', (d: any) => Math.min(0.8, 0.15 + d.weight * 0.05))
+      .attr('stroke-width', (d: any) => Math.min(4, 0.5 + d.weight * 0.3));
 
-    // Nodes
-    const node = g.append('g')
-      .selectAll<SVGCircleElement, GraphNode>('circle')
+    // Node groups
+    const nodeGroup = g.append('g')
+      .selectAll<SVGGElement, DirNode>('g')
       .data(nodeData)
-      .join('circle')
-      .attr('r', d => nodeRadius(d))
-      .attr('fill', d => nodeColor(d))
-      .attr('stroke', d => selectedNode && d.id === selectedNode.id ? '#ffffff' : 'none')
-      .attr('stroke-width', 2)
+      .join('g')
       .attr('cursor', 'pointer')
-      .on('click', (_event, d) => onNodeClick(d))
-      .on('dblclick', (_event, d) => onNodeDoubleClick(d));
+      .on('click', (_event, d) => onDirClickRef.current(d.id));
+
+    nodeGroup.append('circle')
+      .attr('r', (d: any) => radius(d))
+      .attr('fill', d => d.color)
+      .attr('fill-opacity', 0.15)
+      .attr('stroke', d => d.color)
+      .attr('stroke-width', 2)
+      .attr('stroke-opacity', 0.7);
+
+    nodeGroup.append('text')
+      .text(d => d.label)
+      .attr('text-anchor', 'middle')
+      .attr('dy', -4)
+      .attr('fill', d => d.color)
+      .attr('font-size', d => d.fileCount > 10 ? 14 : 12)
+      .attr('font-weight', 600)
+      .attr('pointer-events', 'none');
+
+    nodeGroup.append('text')
+      .text(d => `${d.fileCount} files`)
+      .attr('text-anchor', 'middle')
+      .attr('dy', 14)
+      .attr('fill', '#8b949e')
+      .attr('font-size', 11)
+      .attr('pointer-events', 'none');
+
+    nodeGroup.append('text')
+      .text(d => {
+        const total = d.totalInDegree + d.totalOutDegree;
+        return total > 0 ? `↔ ${total}` : '';
+      })
+      .attr('text-anchor', 'middle')
+      .attr('dy', 28)
+      .attr('fill', '#6e7681')
+      .attr('font-size', 10)
+      .attr('pointer-events', 'none');
+
+    // Hover
+    nodeGroup
+      .on('mouseenter', function(_event, d) {
+        select(this).select('circle')
+          .attr('fill-opacity', 0.3)
+          .attr('stroke-opacity', 1)
+          .attr('stroke-width', 3);
+
+        const connectedDirs = new Set<string>();
+        for (const e of edges) {
+          if (e.from === d.id) connectedDirs.add(e.to);
+          if (e.to === d.id) connectedDirs.add(e.from);
+        }
+
+        nodeGroup.select('circle')
+          .attr('fill-opacity', (n: any) => n.id === d.id || connectedDirs.has(n.id) ? 0.3 : 0.05)
+          .attr('stroke-opacity', (n: any) => n.id === d.id || connectedDirs.has(n.id) ? 1 : 0.15);
+
+        nodeGroup.selectAll('text')
+          .attr('opacity', function() {
+            const parent = (this as any).parentNode?.__data__;
+            return parent?.id === d.id || connectedDirs.has(parent?.id) ? 1 : 0.15;
+          });
+
+        link
+          .attr('stroke', (e: any) => {
+            const src = typeof e.source === 'object' ? e.source.id : e.source;
+            const tgt = typeof e.target === 'object' ? e.target.id : e.target;
+            return src === d.id || tgt === d.id ? d.color : '#484f58';
+          })
+          .attr('stroke-opacity', (e: any) => {
+            const src = typeof e.source === 'object' ? e.source.id : e.source;
+            const tgt = typeof e.target === 'object' ? e.target.id : e.target;
+            return src === d.id || tgt === d.id ? 0.9 : 0.05;
+          });
+      })
+      .on('mouseleave', () => {
+        nodeGroup.select('circle')
+          .attr('fill-opacity', 0.15)
+          .attr('stroke-opacity', 0.7)
+          .attr('stroke-width', 2);
+        nodeGroup.selectAll('text').attr('opacity', 1);
+        link
+          .attr('stroke', '#484f58')
+          .attr('stroke-opacity', (d: any) => Math.min(0.8, 0.15 + d.weight * 0.05));
+      });
 
     // Drag
-    node.call(
-      (select as any)
-        ? (selection: any) => {
-            let dragSubject: GraphNode | null = null;
-            selection
-              .on('mousedown.drag', (event: MouseEvent, d: GraphNode) => {
-                dragSubject = d;
-                d.fx = d.x;
-                d.fy = d.y;
-                const onMove = (e: MouseEvent) => {
-                  if (!dragSubject) return;
-                  const transform = (svg.node() as any).__zoom ?? zoomIdentity;
-                  dragSubject.fx = (e.clientX - transform.x) / transform.k;
-                  dragSubject.fy = (e.clientY - transform.y) / transform.k;
-                  simulation.alpha(0.3).restart();
-                };
-                const onUp = () => {
-                  if (dragSubject) {
-                    dragSubject.fx = null;
-                    dragSubject.fy = null;
-                    dragSubject = null;
-                  }
-                  window.removeEventListener('mousemove', onMove);
-                  window.removeEventListener('mouseup', onUp);
-                };
-                window.addEventListener('mousemove', onMove);
-                window.addEventListener('mouseup', onUp);
-                event.stopPropagation();
-              });
-          }
-        : () => {}
-    );
-
-    // Labels
-    const label = g.append('g')
-      .selectAll('text')
-      .data(nodeData)
-      .join('text')
-      .text(d => nodeLabel(d.id))
-      .attr('font-size', 10)
-      .attr('fill', '#8b949e')
-      .attr('dx', d => nodeRadius(d) + 4)
-      .attr('dy', 3)
-      .attr('pointer-events', 'none');
+    nodeGroup.call((selection: any) => {
+      let subject: any = null;
+      selection.on('mousedown.drag', (event: MouseEvent, d: any) => {
+        subject = d;
+        d.fx = d.x; d.fy = d.y;
+        const onMove = (e: MouseEvent) => {
+          if (!subject) return;
+          const t = (svg.node() as any).__zoom ?? zoomIdentity;
+          subject.fx = (e.clientX - t.x) / t.k;
+          subject.fy = (e.clientY - t.y) / t.k;
+          simulation.alpha(0.3).restart();
+        };
+        const onUp = () => {
+          if (subject) { subject.fx = null; subject.fy = null; subject = null; }
+          window.removeEventListener('mousemove', onMove);
+          window.removeEventListener('mouseup', onUp);
+        };
+        window.addEventListener('mousemove', onMove);
+        window.addEventListener('mouseup', onUp);
+        event.stopPropagation();
+      });
+    });
 
     simulation.on('tick', () => {
       link
-        .attr('x1', (d: any) => d.source.x)
-        .attr('y1', (d: any) => d.source.y)
-        .attr('x2', (d: any) => d.target.x)
-        .attr('y2', (d: any) => d.target.y);
-      node
-        .attr('cx', d => d.x ?? 0)
-        .attr('cy', d => d.y ?? 0);
-      label
-        .attr('x', (d: any) => d.x ?? 0)
-        .attr('y', (d: any) => d.y ?? 0);
+        .attr('x1', (d: any) => d.source.x).attr('y1', (d: any) => d.source.y)
+        .attr('x2', (d: any) => d.target.x).attr('y2', (d: any) => d.target.y);
+      nodeGroup.attr('transform', (d: any) => `translate(${d.x},${d.y})`);
     });
 
-    return () => {
-      simulation.stop();
-    };
-  }, [nodes, edges, selectedNode, onNodeClick, onNodeDoubleClick]);
+    return () => { simulation.stop(); };
+  }, [nodes, edges]);
+
+  return <svg ref={svgRef} style={{ width: '100%', height: '100%' }} />;
+};
+
+// ─── File-level graph ───
+
+interface FileGraphProps {
+  nodes: GraphNode[];
+  edges: GraphEdge[];
+  dirColor: string;
+  selectedNodeId: string | null;
+  onNodeClick: (node: GraphNode) => void;
+}
+
+export const FileGraph: React.FC<FileGraphProps> = ({ nodes, edges, dirColor, selectedNodeId, onNodeClick }) => {
+  const svgRef = useRef<SVGSVGElement>(null);
+  const onNodeClickRef = useRef(onNodeClick);
+  onNodeClickRef.current = onNodeClick;
+  const selectedNodeIdRef = useRef(selectedNodeId);
+  selectedNodeIdRef.current = selectedNodeId;
+
+  // Update selection visuals without re-running simulation
+  useEffect(() => {
+    if (!svgRef.current) return;
+    const svg = select(svgRef.current);
+    svg.selectAll<SVGCircleElement, GraphNode>('circle.node-circle')
+      .attr('fill-opacity', d => d.id === selectedNodeId ? 0.6 : 0.3)
+      .attr('stroke', d => d.id === selectedNodeId ? '#ffffff' : dirColor)
+      .attr('stroke-width', d => d.id === selectedNodeId ? 2.5 : 1.5);
+  }, [selectedNodeId, dirColor]);
+
+  // Simulation — only re-run when nodes/edges change, NOT on selection change
+  useEffect(() => {
+    if (!svgRef.current || nodes.length === 0) return;
+
+    const svg = select(svgRef.current);
+    const width = svgRef.current.clientWidth;
+    const height = svgRef.current.clientHeight;
+    svg.selectAll('*').remove();
+
+    const defs = svg.append('defs');
+    defs.append('marker')
+      .attr('id', 'arrow-file')
+      .attr('viewBox', '0 -3 6 6').attr('refX', 16).attr('refY', 0)
+      .attr('markerWidth', 6).attr('markerHeight', 6).attr('orient', 'auto')
+      .append('path').attr('d', 'M0,-3L6,0L0,3').attr('fill', '#484f58');
+
+    const g = svg.append('g');
+    let currentScale = 1;
+    const zoomBehavior = d3Zoom<SVGSVGElement, unknown>()
+      .scaleExtent([0.3, 6])
+      .on('zoom', (event) => {
+        g.attr('transform', event.transform);
+        currentScale = event.transform.k;
+        g.selectAll('text').attr('transform', `scale(${1 / currentScale})`);
+      });
+    svg.call(zoomBehavior);
+
+    const nodeIds = new Set(nodes.map(n => n.id));
+    const internalEdges = edges.filter(e => nodeIds.has(e.from) && nodeIds.has(e.to));
+    const externalEdges = edges.filter(e => !(nodeIds.has(e.from) && nodeIds.has(e.to)));
+
+    const nodeData = nodes.map(n => ({ ...n }));
+    const linkData = internalEdges.map(e => ({ ...e, source: e.from, target: e.to }));
+
+    const externalConnections = new Map<string, number>();
+    for (const e of externalEdges) {
+      if (nodeIds.has(e.from)) externalConnections.set(e.from, (externalConnections.get(e.from) ?? 0) + 1);
+      if (nodeIds.has(e.to)) externalConnections.set(e.to, (externalConnections.get(e.to) ?? 0) + 1);
+    }
+
+    function radius(n: GraphNode) {
+      const ext = externalConnections.get(n.id) ?? 0;
+      return Math.max(8, Math.min(28, 6 + (n.inDegree + n.outDegree + ext) * 1.5));
+    }
+
+    function label(id: string) {
+      const parts = id.split('/');
+      const f = parts[parts.length - 1];
+      const dot = f.lastIndexOf('.');
+      return dot > 0 ? f.slice(0, dot) : f;
+    }
+
+    const simulation = forceSimulation<GraphNode>(nodeData)
+      .force('link', forceLink(linkData as any).id((d: any) => d.id).distance(100).strength(0.5))
+      .force('charge', forceManyBody().strength(-300))
+      .force('center', forceCenter(width / 2, height / 2))
+      .force('collide', forceCollide<GraphNode>().radius(d => radius(d) + 10));
+
+    const link = g.append('g')
+      .selectAll('line')
+      .data(linkData)
+      .join('line')
+      .attr('stroke', '#484f58')
+      .attr('stroke-opacity', 0.4)
+      .attr('stroke-width', 1)
+      .attr('marker-end', 'url(#arrow-file)');
+
+    const nodeGroup = g.append('g')
+      .selectAll<SVGGElement, GraphNode>('g')
+      .data(nodeData)
+      .join('g')
+      .attr('cursor', 'pointer')
+      .on('click', (_event, d) => onNodeClickRef.current(d));
+
+    nodeGroup.append('circle')
+      .attr('class', 'node-circle')
+      .attr('r', d => radius(d))
+      .attr('fill', dirColor)
+      .attr('fill-opacity', d => d.id === selectedNodeIdRef.current ? 0.6 : 0.3)
+      .attr('stroke', d => d.id === selectedNodeIdRef.current ? '#ffffff' : dirColor)
+      .attr('stroke-width', d => d.id === selectedNodeIdRef.current ? 2.5 : 1.5)
+      .attr('stroke-opacity', 0.8);
+
+    nodeGroup.filter(d => (externalConnections.get(d.id) ?? 0) > 0)
+      .append('circle')
+      .attr('r', d => radius(d) + 4)
+      .attr('fill', 'none')
+      .attr('stroke', '#6e7681')
+      .attr('stroke-width', 1)
+      .attr('stroke-dasharray', '3,3')
+      .attr('pointer-events', 'none');
+
+    nodeGroup.append('text')
+      .text(d => label(d.id))
+      .attr('text-anchor', 'middle')
+      .attr('dy', d => radius(d) + 14)
+      .attr('fill', '#e6edf3')
+      .attr('font-size', 11)
+      .attr('font-weight', 500)
+      .attr('pointer-events', 'none');
+
+    // Hover
+    nodeGroup
+      .on('mouseenter', function(_event, d) {
+        const connected = new Set<string>();
+        for (const e of internalEdges) {
+          if (e.from === d.id) connected.add(e.to);
+          if (e.to === d.id) connected.add(e.from);
+        }
+
+        nodeGroup.select('.node-circle')
+          .attr('fill-opacity', (n: any) => n.id === d.id || connected.has(n.id) ? 0.6 : 0.08);
+        nodeGroup.selectAll('text')
+          .attr('opacity', function() {
+            const p = (this as any).parentNode?.__data__;
+            return p?.id === d.id || connected.has(p?.id) ? 1 : 0.2;
+          });
+
+        link
+          .attr('stroke-opacity', (e: any) => {
+            const s = typeof e.source === 'object' ? e.source.id : e.source;
+            const t = typeof e.target === 'object' ? e.target.id : e.target;
+            return s === d.id || t === d.id ? 0.9 : 0.08;
+          })
+          .attr('stroke', (e: any) => {
+            const s = typeof e.source === 'object' ? e.source.id : e.source;
+            const t = typeof e.target === 'object' ? e.target.id : e.target;
+            return s === d.id || t === d.id ? dirColor : '#484f58';
+          });
+      })
+      .on('mouseleave', () => {
+        nodeGroup.select('.node-circle')
+          .attr('fill-opacity', (d: any) => d.id === selectedNodeIdRef.current ? 0.6 : 0.3);
+        nodeGroup.selectAll('text').attr('opacity', 1);
+        link.attr('stroke-opacity', 0.4).attr('stroke', '#484f58');
+      });
+
+    // Drag
+    nodeGroup.call((selection: any) => {
+      let subject: any = null;
+      selection.on('mousedown.drag', (event: MouseEvent, d: any) => {
+        subject = d;
+        d.fx = d.x; d.fy = d.y;
+        const onMove = (e: MouseEvent) => {
+          if (!subject) return;
+          const t = (svg.node() as any).__zoom ?? zoomIdentity;
+          subject.fx = (e.clientX - t.x) / t.k;
+          subject.fy = (e.clientY - t.y) / t.k;
+          simulation.alpha(0.3).restart();
+        };
+        const onUp = () => {
+          if (subject) { subject.fx = null; subject.fy = null; subject = null; }
+          window.removeEventListener('mousemove', onMove);
+          window.removeEventListener('mouseup', onUp);
+        };
+        window.addEventListener('mousemove', onMove);
+        window.addEventListener('mouseup', onUp);
+        event.stopPropagation();
+      });
+    });
+
+    simulation.on('tick', () => {
+      link
+        .attr('x1', (d: any) => d.source.x).attr('y1', (d: any) => d.source.y)
+        .attr('x2', (d: any) => d.target.x).attr('y2', (d: any) => d.target.y);
+      nodeGroup.attr('transform', (d: any) => `translate(${d.x},${d.y})`);
+    });
+
+    return () => { simulation.stop(); };
+  }, [nodes, edges, dirColor]);
 
   return <svg ref={svgRef} style={{ width: '100%', height: '100%' }} />;
 };
