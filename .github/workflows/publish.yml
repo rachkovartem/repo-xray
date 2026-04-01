@@ -24,6 +24,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -33,6 +34,9 @@ jobs:
 
       - name: Test
         run: pnpm test
+
+      - name: Remove static auth token for OIDC
+        run: npm config delete //registry.npmjs.org/:_authToken
 
       - name: Publish to npm
         working-directory: packages/cli
