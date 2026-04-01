@@ -17,6 +17,15 @@ importers:
 
   packages/cli:
     dependencies:
+      '@repo-xray/core':
+        specifier: workspace:*
+        version: link:../core
+      '@repo-xray/json':
+        specifier: workspace:*
+        version: link:../json
+      '@repo-xray/markdown':
+        specifier: workspace:*
+        version: link:../markdown
       commander:
         specifier: ^13
         version: 13.1.0

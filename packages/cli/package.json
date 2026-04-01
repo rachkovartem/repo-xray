@@ -33,6 +33,9 @@
     "node": ">=18"
   },
   "dependencies": {
+    "@repo-xray/core": "workspace:*",
+    "@repo-xray/json": "workspace:*",
+    "@repo-xray/markdown": "workspace:*",
     "commander": "^13",
     "ignore": "^7",
     "open": "^10",
