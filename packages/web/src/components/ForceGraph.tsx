@@ -2,7 +2,7 @@ import React, { useRef, useEffect, useCallback } from 'react';
 import { forceSimulation, forceLink, forceManyBody, forceCenter, forceCollide } from 'd3-force';
 import { select } from 'd3-selection';
 import { zoom as d3Zoom, zoomIdentity } from 'd3-zoom';
-import type { DirNode, DirEdge, GraphNode, GraphEdge } from '../types.js';
+import { type DirNode, type DirEdge, type GraphNode, type GraphEdge, getNodeHealth } from '../types.js';
 
 // ─── Directory-level graph ───
 
@@ -211,9 +211,14 @@ export const FileGraph: React.FC<FileGraphProps> = ({ nodes, edges, dirColor, se
   useEffect(() => {
     if (!svgRef.current) return;
     const svg = select(svgRef.current);
+    const healthColors: Record<string, string> = { critical: '#f85149', warning: '#d29922' };
     svg.selectAll<SVGCircleElement, GraphNode>('circle.node-circle')
       .attr('fill-opacity', d => d.id === selectedNodeId ? 0.6 : 0.3)
-      .attr('stroke', d => d.id === selectedNodeId ? '#ffffff' : dirColor)
+      .attr('stroke', d => {
+        if (d.id === selectedNodeId) return '#ffffff';
+        const h = getNodeHealth(d).level;
+        return healthColors[h] ?? dirColor;
+      })
       .attr('stroke-width', d => d.id === selectedNodeId ? 2.5 : 1.5);
   }, [selectedNodeId, dirColor]);
 
@@ -291,16 +296,50 @@ export const FileGraph: React.FC<FileGraphProps> = ({ nodes, edges, dirColor, se
       .attr('cursor', 'pointer')
       .on('click', (_event, d) => onNodeClickRef.current(d));
 
+    // Health glow — render BEFORE the main circle so it's behind
+    const healthColors: Record<string, string> = { critical: '#f85149', warning: '#d29922' };
+    nodeGroup.filter(d => getNodeHealth(d).level !== 'ok')
+      .append('circle')
+      .attr('class', 'health-glow')
+      .attr('r', d => radius(d) + 8)
+      .attr('fill', 'none')
+      .attr('stroke', d => healthColors[getNodeHealth(d).level] ?? 'none')
+      .attr('stroke-width', 3)
+      .attr('stroke-opacity', 0.7)
+      .attr('pointer-events', 'none');
+
+    // Pulsing animation for critical nodes
+    nodeGroup.filter(d => getNodeHealth(d).level === 'critical')
+      .append('circle')
+      .attr('class', 'health-pulse')
+      .attr('r', d => radius(d) + 12)
+      .attr('fill', 'none')
+      .attr('stroke', '#f85149')
+      .attr('stroke-width', 1.5)
+      .attr('stroke-opacity', 0.3)
+      .attr('pointer-events', 'none');
+
     nodeGroup.append('circle')
       .attr('class', 'node-circle')
       .attr('r', d => radius(d))
-      .attr('fill', dirColor)
+      .attr('fill', d => {
+        const h = getNodeHealth(d).level;
+        if (h === 'critical') return '#f85149';
+        if (h === 'warning') return '#d29922';
+        return dirColor;
+      })
       .attr('fill-opacity', d => d.id === selectedNodeIdRef.current ? 0.6 : 0.3)
-      .attr('stroke', d => d.id === selectedNodeIdRef.current ? '#ffffff' : dirColor)
+      .attr('stroke', d => {
+        if (d.id === selectedNodeIdRef.current) return '#ffffff';
+        const h = getNodeHealth(d).level;
+        if (h === 'critical') return '#f85149';
+        if (h === 'warning') return '#d29922';
+        return dirColor;
+      })
       .attr('stroke-width', d => d.id === selectedNodeIdRef.current ? 2.5 : 1.5)
       .attr('stroke-opacity', 0.8);
 
-    nodeGroup.filter(d => (externalConnections.get(d.id) ?? 0) > 0)
+    nodeGroup.filter(d => (externalConnections.get(d.id) ?? 0) > 0 && getNodeHealth(d).level === 'ok')
       .append('circle')
       .attr('r', d => radius(d) + 4)
       .attr('fill', 'none')

@@ -1,9 +1,9 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import { useGraph } from './hooks/use-graph.js';
 import { DirGraph, FileGraph } from './components/ForceGraph.js';
 import { DetailPanel } from './components/DetailPanel.js';
 import { SearchBar } from './components/SearchBar.js';
-import type { GraphNode } from './types.js';
+import { type GraphNode, type HealthInfo, getNodeHealth } from './types.js';
 
 export const App: React.FC = () => {
   const {
@@ -49,6 +49,21 @@ export const App: React.FC = () => {
 
   const isFileView = expandedDir !== null;
   const currentDirColor = expandedDir ? (dirColorMap.get(expandedDir) ?? '#58a6ff') : '#58a6ff';
+
+  // Compute health warnings for all nodes
+  const warnings = useMemo(() => {
+    if (!data) return [];
+    const result: { node: GraphNode; health: HealthInfo }[] = [];
+    for (const node of data.nodes) {
+      const health = getNodeHealth(node);
+      if (health.level !== 'ok') result.push({ node, health });
+    }
+    // Critical first, then warning
+    result.sort((a, b) => (a.health.level === 'critical' ? 0 : 1) - (b.health.level === 'critical' ? 0 : 1));
+    return result;
+  }, [data]);
+
+  const [showWarnings, setShowWarnings] = useState(true);
 
   return (
     <div style={{ display: 'flex', width: '100%', height: '100vh', position: 'relative' }}>
@@ -148,7 +163,10 @@ export const App: React.FC = () => {
                 <LegendCircle size={14} filled color={currentDirColor} /> Larger = more connections
               </LegendItem>
               <LegendItem>
-                <LegendCircle size={14} dashed /> Dashed ring = has external imports
+                <LegendCircle size={14} filled color="#f85149" /> God Object (high in + out)
+              </LegendItem>
+              <LegendItem>
+                <LegendCircle size={14} filled color="#d29922" /> Needs attention
               </LegendItem>
               <LegendItem>
                 <LegendArrow /> Arrow = import direction
@@ -160,6 +178,79 @@ export const App: React.FC = () => {
           </>
         )}
       </div>
+
+      {/* Warnings panel */}
+      {warnings.length > 0 && showWarnings && !selectedNode && (
+        <div style={{
+          position: 'absolute', top: 50, right: 16, zIndex: 10,
+          background: 'var(--bg-secondary)', border: '1px solid var(--border)',
+          borderRadius: 8, padding: '12px 16px', maxWidth: 380,
+          maxHeight: 'calc(100vh - 100px)', overflowY: 'auto',
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 }}>
+            <span style={{ fontWeight: 600, fontSize: 13, color: 'var(--text)' }}>
+              Issues ({warnings.length})
+            </span>
+            <button onClick={() => setShowWarnings(false)} style={{
+              background: 'none', border: 'none', color: 'var(--text-secondary)', cursor: 'pointer', fontSize: 16, padding: 2,
+            }}>x</button>
+          </div>
+          {warnings.map(({ node, health }) => {
+            const color = health.level === 'critical' ? '#f85149' : '#d29922';
+            const label = health.level === 'critical' ? 'CRITICAL' : 'WARNING';
+            const fileName = node.id.split('/').pop()?.replace(/\.[^.]+$/, '') ?? node.id;
+            return (
+              <div key={node.id} style={{
+                marginBottom: 8, padding: '8px 10px', borderRadius: 6,
+                background: color + '10', border: `1px solid ${color}30`,
+                cursor: 'pointer',
+              }} onClick={() => {
+                // Navigate to the directory containing this file
+                const dirKey = node.id.split('/').slice(0, -1).join('/');
+                setExpandedDir(dirKey);
+                setSelectedNode(node);
+                setShowWarnings(false);
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4 }}>
+                  <span style={{
+                    fontSize: 10, fontWeight: 700, color, letterSpacing: 0.5,
+                    background: color + '20', padding: '1px 5px', borderRadius: 3,
+                  }}>{label}</span>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>{fileName}</span>
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--text-secondary)', lineHeight: 1.4 }}>
+                  {health.reason}
+                </div>
+                <div style={{ fontSize: 10, color: '#6e7681', marginTop: 4 }}>
+                  {node.id}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Warnings badge (when panel is collapsed) */}
+      {warnings.length > 0 && !showWarnings && !selectedNode && (
+        <button onClick={() => setShowWarnings(true)} style={{
+          position: 'absolute', top: 50, right: 16, zIndex: 10,
+          background: warnings.some(w => w.health.level === 'critical') ? '#f8514920' : '#d2992220',
+          border: `1px solid ${warnings.some(w => w.health.level === 'critical') ? '#f8514950' : '#d2992250'}`,
+          borderRadius: 8, padding: '8px 14px', cursor: 'pointer',
+          color: warnings.some(w => w.health.level === 'critical') ? '#f85149' : '#d29922',
+          fontSize: 13, fontWeight: 600,
+        }}>
+          {warnings.filter(w => w.health.level === 'critical').length > 0
+            ? `${warnings.filter(w => w.health.level === 'critical').length} critical`
+            : ''
+          }
+          {warnings.filter(w => w.health.level === 'critical').length > 0 && warnings.filter(w => w.health.level === 'warning').length > 0 ? ' · ' : ''}
+          {warnings.filter(w => w.health.level === 'warning').length > 0
+            ? `${warnings.filter(w => w.health.level === 'warning').length} warnings`
+            : ''
+          }
+        </button>
+      )}
 
       {/* Detail panel */}
       {selectedNode && data && (

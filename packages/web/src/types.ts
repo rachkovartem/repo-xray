@@ -36,3 +36,26 @@ export interface DirEdge {
   to: string;
   weight: number; // number of file-level edges between these dirs
 }
+
+export type HealthLevel = 'critical' | 'warning' | 'ok';
+
+export interface HealthInfo {
+  level: HealthLevel;
+  reason: string;
+}
+
+export function getNodeHealth(node: GraphNode): HealthInfo {
+  // God Object: high in AND high out
+  if (node.inDegree >= 10 && node.outDegree >= 10) {
+    return { level: 'critical', reason: `God Object — ${node.inDegree} dependents, imports ${node.outDegree} modules. Consider splitting.` };
+  }
+  // Excessive fan-out
+  if (node.outDegree >= 15) {
+    return { level: 'warning', reason: `High fan-out — imports ${node.outDegree} modules. Doing too much?` };
+  }
+  // Unstable hub
+  if (node.inDegree >= 15 && node.outDegree >= 3) {
+    return { level: 'warning', reason: `Unstable hub — ${node.inDegree} dependents but imports ${node.outDegree} modules. Hard to change safely.` };
+  }
+  return { level: 'ok', reason: '' };
+}

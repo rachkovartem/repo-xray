@@ -1,5 +1,5 @@
 import React from 'react';
-import type { GraphNode, GraphEdge } from '../types.js';
+import { type GraphNode, type GraphEdge, getNodeHealth } from '../types.js';
 
 const KIND_COLORS: Record<string, string> = {
   function: '#d2a8ff', class: '#f0883e', interface: '#3fb950',
@@ -31,11 +31,30 @@ export const DetailPanel: React.FC<DetailPanelProps> = ({ node, edges, onClose, 
         }}>x</button>
       </div>
 
-      <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 16 }}>
-        <span style={{ marginRight: 12 }}>Layer: <strong style={{ color: 'var(--text)' }}>{node.layer ?? 'unknown'}</strong></span>
+      <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 12 }}>
         <span style={{ marginRight: 12 }}>In: <strong style={{ color: 'var(--text)' }}>{node.inDegree}</strong></span>
         <span>Out: <strong style={{ color: 'var(--text)' }}>{node.outDegree}</strong></span>
       </div>
+
+      {(() => {
+        const health = getNodeHealth(node);
+        if (health.level === 'ok') return null;
+        const color = health.level === 'critical' ? '#f85149' : '#d29922';
+        const label = health.level === 'critical' ? 'CRITICAL' : 'WARNING';
+        return (
+          <div style={{
+            marginBottom: 16, padding: '8px 10px', borderRadius: 6,
+            background: color + '10', border: `1px solid ${color}30`,
+            fontSize: 12, lineHeight: 1.5,
+          }}>
+            <span style={{
+              fontSize: 10, fontWeight: 700, color, letterSpacing: 0.5,
+              background: color + '20', padding: '1px 5px', borderRadius: 3, marginRight: 6,
+            }}>{label}</span>
+            <span style={{ color: 'var(--text-secondary)' }}>{health.reason}</span>
+          </div>
+        );
+      })()}
 
       {exportedSymbols.length > 0 && (
         <div style={{ marginBottom: 16 }}>
