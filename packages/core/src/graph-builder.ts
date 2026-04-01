@@ -106,8 +106,10 @@ function resolveImport(
     }
   }
 
-  // No extension — try common extensions
-  if (!ext) {
+  // No extension or non-standard extension (e.g. './main.store' where .store is not a real ext)
+  // Try appending common extensions
+  const sourceExts = new Set(['.ts', '.tsx', '.js', '.jsx', '.mts', '.mjs']);
+  if (!ext || !sourceExts.has(ext)) {
     const tryExts = ['.ts', '.tsx', '.js', '.jsx', '.mts', '.mjs'];
     for (const e of tryExts) {
       const candidate = resolved + e;
