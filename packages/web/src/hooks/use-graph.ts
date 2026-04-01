@@ -10,10 +10,25 @@ const DIR_COLORS = [
 
 function getDirKey(fileId: string): string {
   const parts = fileId.split('/');
-  // e.g. "src/components/Foo.tsx" → "src/components"
-  // e.g. "middleware.ts" → "."
   if (parts.length <= 1) return '.';
-  return parts.slice(0, -1).join('/');
+
+  // For monorepos: backend/src/domain/foo.ts → "backend/src/domain"
+  // For flat: src/components/Foo.tsx → "src/components"
+  const topLevelMonorepo = ['backend', 'frontend', 'packages', 'apps', 'server', 'client', 'api', 'web'];
+  if (topLevelMonorepo.includes(parts[0]) && parts.length >= 4 && parts[1] === 'src') {
+    return parts.slice(0, 3).join('/');
+  }
+  if (topLevelMonorepo.includes(parts[0]) && parts.length >= 3) {
+    return parts.slice(0, Math.min(3, parts.length - 1)).join('/');
+  }
+
+  // For flat projects: src/components/Foo.tsx → "src/components"
+  if (parts[0] === 'src' && parts.length >= 3) {
+    return parts.slice(0, 2).join('/');
+  }
+
+  if (parts.length === 2) return parts[0];
+  return parts.slice(0, 2).join('/');
 }
 
 function getDirLabel(dirKey: string): string {
