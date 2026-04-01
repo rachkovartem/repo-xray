@@ -36,25 +36,7 @@ export const DetailPanel: React.FC<DetailPanelProps> = ({ node, edges, onClose, 
         <span>Out: <strong style={{ color: 'var(--text)' }}>{node.outDegree}</strong></span>
       </div>
 
-      {(() => {
-        const health = getNodeHealth(node);
-        if (health.level === 'ok') return null;
-        const color = health.level === 'critical' ? '#f85149' : '#d29922';
-        const label = health.level === 'critical' ? 'CRITICAL' : 'WARNING';
-        return (
-          <div style={{
-            marginBottom: 16, padding: '8px 10px', borderRadius: 6,
-            background: color + '10', border: `1px solid ${color}30`,
-            fontSize: 12, lineHeight: 1.5,
-          }}>
-            <span style={{
-              fontSize: 10, fontWeight: 700, color, letterSpacing: 0.5,
-              background: color + '20', padding: '1px 5px', borderRadius: 3, marginRight: 6,
-            }}>{label}</span>
-            <span style={{ color: 'var(--text-secondary)' }}>{health.reason}</span>
-          </div>
-        );
-      })()}
+      <HealthBadge node={node} />
 
       {exportedSymbols.length > 0 && (
         <div style={{ marginBottom: 16 }}>
@@ -102,3 +84,23 @@ export const DetailPanel: React.FC<DetailPanelProps> = ({ node, edges, onClose, 
     </div>
   );
 };
+
+function HealthBadge({ node }: { node: GraphNode }) {
+  const health = getNodeHealth(node);
+  if (health.level === 'ok') return null;
+  const color = health.level === 'critical' ? '#f85149' : '#d29922';
+  const label = health.level === 'critical' ? 'CRITICAL' : 'WARNING';
+  return (
+    <div style={{
+      marginBottom: 16, padding: '8px 10px', borderRadius: 6,
+      background: color + '10', border: `1px solid ${color}30`,
+      fontSize: 12, lineHeight: 1.5,
+    }}>
+      <span style={{
+        fontSize: 10, fontWeight: 700, color, letterSpacing: 0.5,
+        background: color + '20', padding: '1px 5px', borderRadius: 3, marginRight: 6,
+      }}>{label}</span>
+      <span style={{ color: 'var(--text-secondary)' }}>{health.reason}</span>
+    </div>
+  );
+}

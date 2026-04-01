@@ -31,6 +31,19 @@ export const App: React.FC = () => {
     if (node) setSelectedNode(node);
   }, [data, setSelectedNode]);
 
+  // Hooks MUST be before any conditional returns
+  const [showWarnings, setShowWarnings] = useState(true);
+  const warnings = useMemo(() => {
+    if (!data) return [];
+    const result: { node: GraphNode; health: HealthInfo }[] = [];
+    for (const node of data.nodes) {
+      const health = getNodeHealth(node);
+      if (health.level !== 'ok') result.push({ node, health });
+    }
+    result.sort((a, b) => (a.health.level === 'critical' ? 0 : 1) - (b.health.level === 'critical' ? 0 : 1));
+    return result;
+  }, [data]);
+
   if (loading) {
     return (
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '100vh', color: 'var(--text-secondary)' }}>
@@ -49,20 +62,6 @@ export const App: React.FC = () => {
 
   const isFileView = expandedDir !== null;
   const currentDirColor = expandedDir ? (dirColorMap.get(expandedDir) ?? '#58a6ff') : '#58a6ff';
-
-  // Compute health warnings for all nodes
-  const [showWarnings, setShowWarnings] = useState(true);
-  const warnings = useMemo(() => {
-    if (!data) return [];
-    const result: { node: GraphNode; health: HealthInfo }[] = [];
-    for (const node of data.nodes) {
-      const health = getNodeHealth(node);
-      if (health.level !== 'ok') result.push({ node, health });
-    }
-    // Critical first, then warning
-    result.sort((a, b) => (a.health.level === 'critical' ? 0 : 1) - (b.health.level === 'critical' ? 0 : 1));
-    return result;
-  }, [data]);
 
   return (
     <div style={{ display: 'flex', width: '100%', height: '100vh', position: 'relative' }}>
