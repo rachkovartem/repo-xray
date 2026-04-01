@@ -25,8 +25,8 @@ describe('repo-xray CLI', () => {
   it('generates CLAUDE.md', () => {
     execSync(`node ${CLI} ${FIXTURE} --agent claude`, { encoding: 'utf-8' });
     const content = readFileSync(resolve(FIXTURE, 'CLAUDE.md'), 'utf-8');
-    expect(content).toContain('# Project: simple-app');
-    expect(content).toContain('## Architecture');
+    expect(content).toContain('# simple-app');
+    expect(content).toContain('## Project Structure');
     expect(content).toContain('## Key Modules');
   });
 
@@ -41,7 +41,7 @@ describe('repo-xray CLI', () => {
     execSync(`node ${CLI} ${FIXTURE} --agent agents`, { encoding: 'utf-8' });
     const content = readFileSync(resolve(FIXTURE, 'AGENTS.md'), 'utf-8');
     expect(content).toContain('Codebase Overview');
-    expect(content).toContain('Module Map');
+    expect(content).toContain('Key Modules');
   });
 
   it('generates all agent files at once', () => {
