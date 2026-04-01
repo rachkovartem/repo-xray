@@ -51,6 +51,7 @@ export const App: React.FC = () => {
   const currentDirColor = expandedDir ? (dirColorMap.get(expandedDir) ?? '#58a6ff') : '#58a6ff';
 
   // Compute health warnings for all nodes
+  const [showWarnings, setShowWarnings] = useState(true);
   const warnings = useMemo(() => {
     if (!data) return [];
     const result: { node: GraphNode; health: HealthInfo }[] = [];
@@ -62,8 +63,6 @@ export const App: React.FC = () => {
     result.sort((a, b) => (a.health.level === 'critical' ? 0 : 1) - (b.health.level === 'critical' ? 0 : 1));
     return result;
   }, [data]);
-
-  const [showWarnings, setShowWarnings] = useState(true);
 
   return (
     <div style={{ display: 'flex', width: '100%', height: '100vh', position: 'relative' }}>

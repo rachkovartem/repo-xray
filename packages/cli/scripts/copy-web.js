@@ -1,4 +1,4 @@
-import { cpSync, copyFileSync, existsSync } from 'node:fs';
+import { cpSync, copyFileSync, existsSync, rmSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -9,6 +9,7 @@ const webDist = resolve(__dirname, '../../web/dist');
 const target = resolve(__dirname, '../web-dist');
 
 if (existsSync(webDist)) {
+  if (existsSync(target)) rmSync(target, { recursive: true });
   cpSync(webDist, target, { recursive: true });
   console.log('Copied web UI dist to web-dist/');
 } else {
