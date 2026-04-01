@@ -19,13 +19,17 @@ function findEntryPoints(graph: Graph): string[] {
     const name = basename(id).replace(/\.[^.]+$/, '');
     const dirName = basename(dirname(id));
 
-    // Skip test files — they are never entry points
+    // Skip test files, generated code, mocks — they are never entry points
     if (
       name.endsWith('.test') ||
       name.endsWith('.spec') ||
       dirName === '__tests__' ||
       dirName === 'test' ||
-      dirName === 'tests'
+      dirName === 'tests' ||
+      dirName === 'mocks' ||
+      dirName === '__mocks__' ||
+      id.includes('generated/') ||
+      id.includes('.generated.')
     ) {
       continue;
     }

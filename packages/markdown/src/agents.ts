@@ -1,8 +1,17 @@
 import type { Graph, AnalysisResult } from '@repo-xray/core';
-import { basename } from 'node:path';
+import { basename, join } from 'node:path';
+import { readFileSync } from 'node:fs';
+
+function getProjectName(rootDir: string): string {
+  try {
+    const pkg = JSON.parse(readFileSync(join(rootDir, 'package.json'), 'utf-8'));
+    if (pkg.name) return pkg.name;
+  } catch {}
+  return basename(rootDir);
+}
 
 export function generateAgents(graph: Graph, analysis: AnalysisResult): string {
-  const name = basename(graph.rootDir);
+  const name = getProjectName(graph.rootDir);
   const lines: string[] = [];
 
   lines.push(`# ${name}`);
@@ -14,56 +23,61 @@ export function generateAgents(graph: Graph, analysis: AnalysisResult): string {
   lines.push('## Codebase Overview');
   lines.push('');
   lines.push(`- **Language:** ${graph.meta.language}`);
-  lines.push(`- **Module count:** ${graph.meta.totalModules}`);
-  lines.push(`- **Total symbols:** ${graph.meta.totalSymbols}`);
+  lines.push(`- **Modules:** ${graph.meta.totalModules}`);
   if (analysis.entryPoints.length > 0) {
-    lines.push(`- **Entry points:** ${analysis.entryPoints.join(', ')}`);
-  }
-  lines.push('');
-
-  // Module Map
-  lines.push('## Module Map');
-  lines.push('');
-  const layerOrder = ['entry', 'core', 'util', 'type', 'config', 'test'];
-  const allLayers = Object.keys(analysis.layers);
-  const orderedLayers = [
-    ...layerOrder.filter(l => allLayers.includes(l)),
-    ...allLayers.filter(l => !layerOrder.includes(l)),
-  ];
-  for (const layer of orderedLayers) {
-    const modules = analysis.layers[layer];
-    if (!modules || modules.length === 0) continue;
-    lines.push(`### ${layer}`);
     lines.push('');
-    for (const mod of modules) {
-      const node = graph.nodes.get(mod);
-      const exports = node
-        ? node.symbols.filter(s => s.exported).map(s => s.name).join(', ')
-        : '';
-      lines.push(`- \`${mod}\`${exports ? ` — exports: ${exports}` : ''}`);
+    lines.push('**Entry points:**');
+    for (const ep of analysis.entryPoints) {
+      lines.push(`- \`${ep}\``);
     }
+  }
+  lines.push('');
+
+  // Directory overview
+  const dirs = new Map<string, number>();
+  for (const id of graph.nodes.keys()) {
+    const parts = id.split('/');
+    const dir = parts.length <= 2 ? parts[0] : parts.slice(0, 2).join('/');
+    dirs.set(dir, (dirs.get(dir) ?? 0) + 1);
+  }
+  lines.push('## Directory Structure');
+  lines.push('');
+  for (const [dir, count] of [...dirs.entries()].sort((a, b) => b[1] - a[1])) {
+    lines.push(`- \`${dir}/\` — ${count} files`);
+  }
+  lines.push('');
+
+  // Module Map — only key modules, not the full dump
+  lines.push('## Key Modules');
+  lines.push('');
+  for (const mod of analysis.keyModules) {
+    const node = graph.nodes.get(mod.id);
+    const exports = node ? node.symbols.filter(s => s.exported).map(s => s.name).join(', ') : '';
+    lines.push(`- **\`${mod.id}\`** — ${mod.reason} (in: ${mod.inDegree}, out: ${mod.outDegree})${exports ? '. Exports: ' + exports : ''}`);
+  }
+  lines.push('');
+
+  // Conventions — compact
+  const c = analysis.conventions;
+  const conventions: string[] = [];
+  if (c.exportStyle !== 'mixed') conventions.push(`${c.exportStyle} exports`);
+  if (c.namingFunctions !== 'mixed') conventions.push(`functions: ${c.namingFunctions}`);
+  if (c.namingClasses !== 'unknown' && c.namingClasses !== 'mixed') conventions.push(`classes: ${c.namingClasses}`);
+  if (c.testPattern !== 'none') conventions.push(`tests: ${c.testPattern}`);
+
+  if (conventions.length > 0) {
+    lines.push('## Conventions');
+    lines.push('');
+    lines.push(conventions.join(' · '));
     lines.push('');
   }
-
-  // Conventions
-  lines.push('## Conventions');
-  lines.push('');
-  const c = analysis.conventions;
-  lines.push(`- Export style: ${c.exportStyle}`);
-  lines.push(`- Function naming: ${c.namingFunctions}`);
-  lines.push(`- Class naming: ${c.namingClasses}`);
-  lines.push(`- File structure: ${c.fileStructure}`);
-  lines.push(`- Test pattern: ${c.testPattern}`);
-  lines.push('');
 
   // Warnings
   if (analysis.circularDeps.length > 0) {
     lines.push('## Warnings');
     lines.push('');
-    lines.push('### Circular Dependencies');
-    lines.push('');
     for (const [a, b] of analysis.circularDeps) {
-      lines.push(`- \`${a}\` ↔ \`${b}\``);
+      lines.push(`- Circular dependency: \`${a}\` ↔ \`${b}\``);
     }
     lines.push('');
   }
